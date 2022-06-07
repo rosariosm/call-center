@@ -14,7 +14,7 @@ const agents = [...Array(10)].map((e) => new Agent());
 const simulation = new CallCenterSimulation(blackFridayScenario, agents); // pass scenario and agents amount
 simulation.simulateDay();
 
-// Added this delay to let the simulation attend various calls
+// Added this delay to simulate one day
 setTimeout(() => {
   simulation.getSimulationResult();
-}, 5000);
+}, simulation.time);
