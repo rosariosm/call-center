@@ -1,6 +1,6 @@
 import { Agent } from "./Agent";
 import { Call } from "./Call";
-import { getRandomNumberBetween } from "./utils";
+import { getRandomNumberBetween, getAverage } from "./utils";
 
 type ScenarioRangeCondition = {
   start: number; // Minute of day that the condition applies
@@ -12,12 +12,14 @@ export type Scenario = ScenarioRangeCondition[];
 
 abstract class DayByMinuteSimulation {
   currentMinuteOfDay: number;
+  time: number;
 
   constructor(
     // Current minute of the current day
     currentMinuteOfDay: number = 0
   ) {
     this.currentMinuteOfDay = currentMinuteOfDay;
+    this.time = 60 * 24; // minutes in a day
   }
 
   // Runs every minute, should have simulation logic
@@ -28,8 +30,7 @@ abstract class DayByMinuteSimulation {
 
   // Simulates a day and runs tick function every minute
   simulateDay(): void {
-    const time = 60 * 24; // minutes in a day
-    for (let minute = 0; minute < time; minute++) {
+    for (let minute = 0; minute < this.time; minute++) {
       // console.log(`--- Start Minute ${minute} ---`);
       this.currentMinuteOfDay = minute;
       this.tick();
@@ -44,13 +45,15 @@ class CallCenterSimulation extends DayByMinuteSimulation {
   waitingAgents: Agent[];
   runningAgents: Agent[];
   incomingCalls: Call[];
+  attendedCalls: Call[];
 
   constructor(blackFridayScenario: Scenario, agents: Agent[]) {
     super();
     this.scenario = blackFridayScenario;
-    this.incomingCalls = [];
     this.waitingAgents = agents;
     this.runningAgents = [];
+    this.incomingCalls = [];
+    this.attendedCalls = [];
   }
 
   findMoment = () => {
@@ -72,27 +75,37 @@ class CallCenterSimulation extends DayByMinuteSimulation {
     this.runningAgents = this.runningAgents.filter(
       (agentToRemove) => agentToRemove !== agent
     );
+
     this.waitingAgents.push(agent);
+    if (this.currentMinuteOfDay < this.time) {
+      this.manageCall();
+    }
   };
 
-  queueIncomingCalls = (totalCalls: number) =>
-    new Array(totalCalls).forEach(() => {
+  queueIncomingCalls = (totalCalls: number) => {
+    [...Array(totalCalls)].forEach(() => {
       const call = this.createCall();
       this.incomingCalls.push(call);
     });
+  };
 
   areWaitingAgents = (): boolean => this.waitingAgents.length > 0;
   areIncomingCalls = (): boolean => this.incomingCalls.length > 0;
+  dayHasFinished = (): boolean => this.currentMinuteOfDay > this.time;
+
+  canManageCall = (): boolean =>
+    !this.dayHasFinished() &&
+    this.areWaitingAgents() &&
+    this.areIncomingCalls();
 
   manageCall = (): void => {
-    if (this.areWaitingAgents() && this.areIncomingCalls()) {
+    if (this.canManageCall()) {
       const agent: Agent | undefined = this.waitingAgents.shift();
       const call: Call | undefined = this.incomingCalls.shift();
 
-      // I am checking this earlier but linter doesn't like it
-
       if (call && agent) {
         this.runningAgents.push(agent);
+        this.attendedCalls.push(call);
         agent.attendCall(call, this);
       }
     }
@@ -102,7 +115,8 @@ class CallCenterSimulation extends DayByMinuteSimulation {
     const { callsPerMinute } = this.findMoment();
 
     this.queueIncomingCalls(callsPerMinute);
-    new Array(callsPerMinute).forEach(() => this.manageCall());
+
+    [...Array(callsPerMinute)].forEach(() => this.manageCall());
   }
 
   remainingCalls = () => {
@@ -110,7 +124,7 @@ class CallCenterSimulation extends DayByMinuteSimulation {
   };
 
   finishedCallsByAgent = () => {
-    const result = [];
+    const result: number[] = [];
 
     this.waitingAgents.forEach((agent) => result.push(agent.calls.length));
     this.runningAgents.forEach((agent) => result.push(agent.calls.length));
@@ -128,18 +142,23 @@ class CallCenterSimulation extends DayByMinuteSimulation {
   };
 
   averageWaitingTime = () => {
-    //const result = [];
-//
-    //this.waitingAgents.forEach((agent) => result.push(agent.calls.length));
-    //this.runningAgents.forEach((agent) => result.push(agent.calls.length));
-  }
+    // This does not include not attended calls
+
+    const waitingTimes: number[] = [];
+
+    for (let index = 0; index < this.attendedCalls.length; index++) {
+      const attendedCall = this.attendedCalls[index];
+      waitingTimes.push(attendedCall.waitingTime);
+    }
+
+    return getAverage(waitingTimes);
+  };
 
   getSimulationResult() {
-    const remainingCalls = this.remainingCalls(); // Remaining calls at the end of the day
-    //const finishedCallsByAgent = this.finishedCallsByAgent(); // Finished calls grouped by Agent
-    //const finishedCalls = this.finishedCalls(); //Finished calls
-    //const averageWaitingTime = this.averageWaitingTime(); //  Avarage call waiting time
-    throw new Error("Implement method");
+    console.log("Remaining calls:", this.remainingCalls());
+    console.log("Finished calls by agent", this.finishedCallsByAgent());
+    console.log("Finished calls", this.finishedCalls());
+    console.log("Average waiting time", this.averageWaitingTime());
   }
 }
 

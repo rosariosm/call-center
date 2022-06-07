@@ -15,7 +15,7 @@ export class Agent {
   startCall(call: Call, simulation: CallCenterSimulation): void {
     setTimeout(() => {
       this.hangUpCall(simulation);
-    }, call.duration * 100); // Here I'm simulating minutes. If were real minutes, this would take forever
+    }, call.duration);
   }
 
   attendCall(call: Call, simulation: CallCenterSimulation) {
